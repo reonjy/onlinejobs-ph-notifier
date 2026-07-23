@@ -6,17 +6,19 @@
 #   TELEGRAM_CHAT_ID   (required)
 #   KEYWORDS (optional) — empty = ALL latest jobs; e.g. "virtual assistant,VA"
 #
-# IMPORTANT: GitHub schedule is best-effort (can delay or skip free-tier crons).
-# Cron is offset from :00 to reduce drops during peak load.
-# Use "Run workflow" anytime for an immediate poll.
+# SCHEDULE: GitHub free-tier `schedule` is best-effort and often never runs
+# for low-activity public repos. Prefer EXTERNAL cron (see EXTERNAL_CRON.md):
+#   cron-job.org → POST workflow_dispatch / repository_dispatch every 15 min.
+# Built-in schedule below is only a weak backup.
 # State is saved to branch "state" (durable) + Actions cache (fast restore).
 
 name: OnlineJobs Telegram Notify
 
 on:
+  # Weak backup only — free GitHub cron often skips or never fires.
   schedule:
-    # Every 15 minutes, offset from the hour (UTC) — more reliable than */15
     - cron: "7,22,37,52 * * * *"
+  # Manual run from Actions tab
   workflow_dispatch:
     inputs:
       open_detail:
@@ -27,6 +29,10 @@ on:
         options:
           - "false"
           - "true"
+  # External cron (cron-job.org, EasyCron, etc.) → repository_dispatch
+  # See EXTERNAL_CRON.md
+  repository_dispatch:
+    types: [poll]
 
 permissions:
   contents: write
@@ -69,7 +75,6 @@ jobs:
           mkdir -p state
           git fetch origin state:refs/remotes/origin/state 2>/dev/null || true
           if git show origin/state:seen_jobs.json > /tmp/seen_from_branch.json 2>/dev/null; then
-            # Prefer branch state if it has more IDs than cache (or cache empty)
             BRANCH_COUNT=$(python -c "import json; d=json.load(open('/tmp/seen_from_branch.json')); print(len(d.get('seen_ids',[])))")
             CACHE_COUNT=0
             if [ -f state/seen_jobs.json ]; then
@@ -100,6 +105,9 @@ jobs:
           mkdir -p state
           echo "=== Poll start $(date -u +%Y-%m-%dT%H:%M:%SZ) ==="
           echo "Event: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "Dispatch type: ${{ github.event.action }}"
+          fi
           echo "KEYWORDS length: ${#KEYWORDS} (empty = all jobs)"
           if [ -f state/seen_jobs.json ]; then
             echo "Seen state file size: $(wc -c < state/seen_jobs.json) bytes"
@@ -123,7 +131,6 @@ jobs:
             echo "No state file to persist"
             exit 0
           fi
-          # Work in a throwaway worktree on the state branch
           WORK=/tmp/oj-state
           rm -rf "$WORK"
           if git fetch origin state:refs/remotes/origin/state 2>/dev/null; then

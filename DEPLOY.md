@@ -1,26 +1,29 @@
 # Deploy the Telegram notifier (always-on)
 
-You asked about **Hugging Face**. Short answer: **possible**, but free HF is a weak fit for a 24/7 poller. Prefer **GitHub Actions** (free) unless you already pay for HF PRO / paid hardware.
-
 **Never paste access tokens in chat.** Put them only in platform secret stores.
 
 ---
 
-## Option A — GitHub Actions (recommended, free)
+## Option A — GitHub Actions + external cron (recommended)
 
-Runs `notify.py --once` about every 15 minutes (UTC cron, best-effort). No server to keep awake.
+GitHub Actions runs the scrape + Telegram send.  
+**Do not rely on GitHub’s built-in schedule** — free-tier cron often skips or never fires.
 
-**Reality check:** GitHub free-tier `schedule` is not a guaranteed timer — runs can be delayed or skipped under load. The workflow uses offset minutes (`7,22,37,52`) to reduce drops. For stricter every-15m timing, also use Option C (PC Task Scheduler) or an external cron that calls **Run workflow** via the GitHub API.
+Use a free external timer (cron-job.org) to call the GitHub API every **15 minutes**.
 
-### Steps
+**Full steps:** [EXTERNAL_CRON.md](EXTERNAL_CRON.md)
 
-1. Create a GitHub repo and push this project folder.
-2. Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
-   - `TELEGRAM_BOT_TOKEN`
-   - `TELEGRAM_CHAT_ID`
-   - Optional: `KEYWORDS` = `virtual assistant,VA,Data Entry,Customer Service`
-3. Open **Actions** → enable workflows if asked → run **OnlineJobs Telegram Notify** once manually (**Run workflow**).
-4. First automatic run **seeds** seen jobs (no spam). Later runs send only **new** posts.
+Summary:
+
+1. Secrets on the repo: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `KEYWORDS`
+2. Fine-grained PAT with **Actions: write** on this repo only
+3. cron-job.org POST every 15m to:
+
+   `https://api.github.com/repos/reonjy/onlinejobs-ph-notifier/dispatches`
+
+   Body: `{"event_type":"poll"}`
+
+4. Confirm Actions shows event type **`repository_dispatch`**
 
 Workflow file: `.github/workflows/onlinejobs-notify.yml`
 
@@ -49,8 +52,6 @@ Use HF only if you have PRO (or paid hardware) **and** accept possible sleep, or
    | `requirements.txt` | `hf-space/requirements.txt` |
    | `README.md` | `hf-space/README.md` (with YAML header) |
 
-   Easiest: put everything in one folder locally and use `huggingface-cli upload`.
-
 3. Space → **Settings** → **Variables and secrets** → add:
    - `TELEGRAM_BOT_TOKEN` (secret)
    - `TELEGRAM_CHAT_ID` (secret)
@@ -58,18 +59,7 @@ Use HF only if you have PRO (or paid hardware) **and** accept possible sleep, or
    - `POLL_INTERVAL_MINUTES` = `15`
 
 4. Rebuild the Space. Open the app once so the worker starts.
-5. Optional: use a free cron (e.g. cron-job.org) to HTTP-ping your Space URL every 10 minutes so free hardware wakes more often.
-
-### CLI deploy (you run locally — do not share the token)
-
-```powershell
-pip install -U "huggingface_hub[cli]"
-huggingface-cli login
-# paste token ONLY in the terminal prompt, never in Discord/chat
-
-# After creating the Space on the website, from a deploy folder:
-huggingface-cli upload YOUR_USER/onlinejobs-ph-notifier . . --repo-type=space
-```
+5. Optional: free cron (cron-job.org) HTTP-ping your Space URL every 10 minutes so free hardware wakes more often.
 
 ---
 
@@ -91,8 +81,7 @@ Or Windows **Task Scheduler** every 15 minutes:
 
 | Do | Don't |
 |----|--------|
-| Store tokens in HF/GitHub **Secrets** | Paste HF or Telegram tokens into chat |
-| Use a token with minimal scope | Commit `config.json` with real tokens |
-| Revoke token if it was ever exposed | Put tokens in Space README |
-
-If a token was already pasted somewhere public, **revoke it** on Hugging Face / BotFather and create a new one.
+| Store Telegram tokens in GitHub **Secrets** | Paste tokens into chat |
+| Store PAT only in cron-job.org | Commit PAT / `config.json` with real tokens |
+| Scope PAT to this one repo | Put tokens in Space README |
+| Revoke if ever exposed | Use bot token as chat id |
