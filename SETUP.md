@@ -16,30 +16,15 @@ Repo: https://github.com/reonjy/onlinejobs-ph-notifier
 
    `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
 
-   Example: `https://api.telegram.org/bot7123456789:AAHxxx/getUpdates`
-
-4. Find a block like:
-
-   ```json
-   "chat": { "id": 123456789, "first_name": "You", "type": "private" }
-   ```
-
-5. Copy **only the number** `123456789`  
-   - Private chats: positive number  
-   - Groups: often **negative** (e.g. `-1001234567890`)  
-   - If `"result": []` is empty: you have not messaged the bot yet — go back to step 2
+4. Find `"chat": { "id": 123456789, ... }` and copy **only the number**
 
 ### Common mistakes
 
 | Wrong | Right |
 |-------|--------|
-| Bot token used as chat id | Chat id is a short/long **number** only |
+| Bot token used as chat id | Chat id is a **number** only |
 | Quotes: `"123456789"` | `123456789` with no quotes |
-| Spaces or newlines in the secret | Trimmed number only |
 | Never pressed Start on the bot | Always Start / message first |
-| Group id but bot not in the group | Add bot to group, then getUpdates again |
-
-Optional helper bot: message **@userinfobot** or **@getidsbot** — they reply with your user id (works for private chats).
 
 ## 3. Add GitHub Actions secrets
 
@@ -49,27 +34,39 @@ Go to: https://github.com/reonjy/onlinejobs-ph-notifier/settings/secrets/actions
 |--------|----------|---------|
 | `TELEGRAM_BOT_TOKEN` | Yes | `7123456789:AAH...` |
 | `TELEGRAM_CHAT_ID` | Yes | `123456789` |
-| `KEYWORDS` | Optional | See below |
+| `KEYWORDS` | Optional | empty = all jobs |
 
 ### KEYWORDS secret
 
 | Value | Behavior |
 |-------|----------|
-| **Empty / not set** | **All new jobs** (no filter) — any new post on the latest listing |
-| `all` or `*` | Same as empty — all new jobs |
-| `virtual assistant,VA,Data Entry` | Only jobs matching those keywords |
+| **Empty / not set** | **All new jobs** |
+| `all` or `*` | Same as empty |
+| `virtual assistant,VA,Data Entry` | Only matching keywords |
 
-After changing a secret, **re-run** the workflow (secrets are only read at start of a run).
-
-## 4. Run the workflow
+## 4. Run the workflow once
 
 1. Open: https://github.com/reonjy/onlinejobs-ph-notifier/actions
 2. Select **OnlineJobs Telegram Notify**
 3. **Run workflow**
 
-- First run: seeds existing jobs (no job spam). A ✅ connection message is only sent with `python notify.py --test` or when you intentionally test Telegram.
-- About every 15 minutes after: only **new** matching posts
-- **If polls feel rare:** GitHub Actions free-tier cron is best-effort (can skip). Check the Actions tab for run history, use **Run workflow** manually, or run `python notify.py` on your PC (Option C in DEPLOY.md) for a true timer.
+- First run: seeds existing jobs (no job spam)
+- Later runs: only **new** posts
+
+## 5. External cron every 15 minutes (required for reliability)
+
+**GitHub’s built-in schedule is unreliable** (often never fires).
+
+Follow: **[EXTERNAL_CRON.md](EXTERNAL_CRON.md)**
+
+Quick outline:
+
+1. Create a fine-grained GitHub PAT (Actions write on this repo only)
+2. cron-job.org → POST every 15 minutes to  
+   `https://api.github.com/repos/reonjy/onlinejobs-ph-notifier/dispatches`  
+   Body: `{"event_type":"poll"}`  
+   Header: `Authorization: Bearer <PAT>`
+3. Confirm Actions shows event **`repository_dispatch`**
 
 ## Local use
 
