@@ -107,11 +107,34 @@ def load_config(path: Path) -> dict:
     cfg["telegram_bot_token"] = token
     cfg["telegram_chat_id"] = chat_id
 
-    kw_env = _env("KEYWORDS")
-    if kw_env:
-        cfg["keywords"] = [k.strip() for k in kw_env.split(",") if k.strip()]
+    # KEYWORDS behavior:
+    #   empty / missing / "all" / "*"  → watch ALL new jobs (no filter)
+    #   "virtual assistant,VA,..."     → only those keywords
+    # Config file "keywords": [] also means all jobs.
+    # Use KEYWORDS env key presence: empty secret from GitHub is "" which means all.
+    def _parse_keywords(raw: str | None, from_env: bool) -> list[str] | None:
+        """Return list of keywords, empty list = all jobs, None = leave config default."""
+        if raw is None:
+            return None if not from_env else []
+        text = raw.strip()
+        if not text or text.lower() in {"all", "*", "(all)", "any"}:
+            return []
+        return [k.strip() for k in text.split(",") if k.strip()]
+
+    if "KEYWORDS" in os.environ:
+        cfg["keywords"] = _parse_keywords(os.environ.get("KEYWORDS"), from_env=True) or []
+    elif "keywords" in cfg:
+        raw_cfg = cfg.get("keywords")
+        if isinstance(raw_cfg, list):
+            # empty list in config.json = all jobs; non-empty = filter
+            cfg["keywords"] = [str(k).strip() for k in raw_cfg if str(k).strip()]
+        elif isinstance(raw_cfg, str):
+            cfg["keywords"] = _parse_keywords(raw_cfg, from_env=False) or []
+        else:
+            cfg["keywords"] = []
     else:
-        cfg.setdefault("keywords", DEFAULT_KEYWORDS)
+        # No keywords configured → all new jobs
+        cfg["keywords"] = []
 
     if _env("POLL_INTERVAL_MINUTES"):
         cfg["poll_interval_minutes"] = float(_env("POLL_INTERVAL_MINUTES"))  # type: ignore[arg-type]
@@ -228,9 +251,9 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> None:
 def html_escape(text: str) -> str:
     return (
         (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
+        .replace("&", "&")
+        .replace("<", "<")
+        .replace(">", ">")
     )
 
 
@@ -271,13 +294,17 @@ def test_telegram(token: str, chat_id: str) -> None:
 
 def collect_jobs(cfg: dict) -> list[dict]:
     session = make_session()
-    keywords = cfg["keywords"]
+    keywords = cfg.get("keywords") or []
     delay = float(cfg["request_delay_seconds"])
     pages = int(cfg["pages_per_keyword"])
     collected: list[dict] = []
 
-    for kw in keywords:
-        print(f"  Checking keyword: {kw!r}")
+    # Empty keywords → single unfiltered scrape (all latest jobs)
+    searches: list[str | None] = list(keywords) if keywords else [None]
+
+    for kw in searches:
+        label = kw if kw else "(all jobs)"
+        print(f"  Checking keyword: {label!r}")
         try:
             collected.extend(
                 scrape_keyword(
@@ -291,7 +318,7 @@ def collect_jobs(cfg: dict) -> list[dict]:
         except KeyboardInterrupt:
             raise
         except Exception as exc:
-            print(f"  [warn] keyword {kw!r} failed: {exc}")
+            print(f"  [warn] keyword {label!r} failed: {exc}")
 
     jobs = dedupe_jobs(collected)
     jobs = sort_jobs_latest_first(jobs)
@@ -425,9 +452,11 @@ def main(argv: list[str] | None = None) -> int:
     state_path = Path(cfg.get("state_file") or STATE_FILE)
     seen = load_seen(state_path)
 
+    kws = cfg.get("keywords") or []
+    kw_display = ", ".join(kws) if kws else "(all jobs — no keyword filter)"
     print("OnlineJobs.ph → Telegram notifier")
     print(f"  Config   : {args.config}")
-    print(f"  Keywords : {cfg['keywords']}")
+    print(f"  Keywords : {kw_display}")
     print(f"  Interval : {interval} min" + (" (single run)" if args.once else ""))
     print(f"  State    : {state_path}")
     print(f"  Seen IDs : {len(seen)} already stored")
