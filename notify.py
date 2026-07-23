@@ -249,9 +249,12 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> None:
 
 
 def html_escape(text: str) -> str:
-    # Equivalent to amp/lt/gt entity escaping (stdlib avoids raw HTML entities in source)
-    import html as _html
-    return _html.escape(text or "", quote=False)
+    return (
+        (text or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
 
 
 def format_job_message(job: dict) -> str:
@@ -335,10 +338,20 @@ def collect_jobs(cfg: dict) -> list[dict]:
 
 def run_once(cfg: dict, seen: set[str], state_path: Path) -> set[str]:
     print(f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Polling OnlineJobs.ph…")
+    print(f"  Already seen IDs loaded: {len(seen)}")
+    kws = cfg.get("keywords") or []
+    print(f"  Keywords: {', '.join(kws) if kws else '(all jobs)'}")
+
     jobs = collect_jobs(cfg)
     print(f"  Found {len(jobs)} unique listings this poll")
+    if jobs:
+        sample = jobs[0]
+        print(
+            f"  Newest sample: {sample.get('Job Post Title', '')[:60]!r} "
+            f"| posted={sample.get('Posted Date', '')!r}"
+        )
 
-    new_jobs = [j for j in jobs if (j.get("job_id") or j.get("Link")) not in seen]
+    new_jobs = [j for j in jobs if str(j.get("job_id") or j.get("Link")) not in seen]
     # Newest first for notifications
     new_jobs = sort_jobs_latest_first(new_jobs)
 
@@ -358,8 +371,11 @@ def run_once(cfg: dict, seen: set[str], state_path: Path) -> set[str]:
         return seen
 
     if not new_jobs:
-        print("  No new jobs.")
-        # still refresh seen with anything current so we don't re-notify
+        print(
+            f"  No new jobs ({len(jobs)} on page, all already seen). "
+            "If you just saw a new post on the site, wait for the next poll "
+            "or Run workflow manually."
+        )
         for j in jobs:
             jid = j.get("job_id") or j.get("Link")
             if jid:
@@ -368,6 +384,9 @@ def run_once(cfg: dict, seen: set[str], state_path: Path) -> set[str]:
         return seen
 
     print(f"  New jobs: {len(new_jobs)} — sending to Telegram…")
+    for j in new_jobs[:5]:
+        print(f"    + {j.get('Job Post Title', '')[:55]} | {j.get('Posted Date', '')}")
+
     token = cfg["telegram_bot_token"]
     chat_id = cfg["telegram_chat_id"]
 
