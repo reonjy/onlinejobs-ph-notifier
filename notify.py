@@ -249,12 +249,9 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> None:
 
 
 def html_escape(text: str) -> str:
-    return (
-        (text or "")
-        .replace("&", "&")
-        .replace("<", "<")
-        .replace(">", ">")
-    )
+    # Equivalent to amp/lt/gt entity escaping (stdlib avoids raw HTML entities in source)
+    import html as _html
+    return _html.escape(text or "", quote=False)
 
 
 def format_job_message(job: dict) -> str:
