@@ -67,8 +67,9 @@ After changing a secret, **re-run** the workflow (secrets are only read at start
 2. Select **OnlineJobs Telegram Notify**
 3. **Run workflow**
 
-- First run: seeds existing jobs (no job spam; you should still get the ✅ connection message)
-- Every 15 minutes after: only **new** matching posts
+- First run: seeds existing jobs (no job spam). A ✅ connection message is only sent with `python notify.py --test` or when you intentionally test Telegram.
+- About every 15 minutes after: only **new** matching posts
+- **If polls feel rare:** GitHub Actions free-tier cron is best-effort (can skip). Check the Actions tab for run history, use **Run workflow** manually, or run `python notify.py` on your PC (Option C in DEPLOY.md) for a true timer.
 
 ## Local use
 
