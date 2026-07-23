@@ -298,26 +298,34 @@ def enrich_from_detail(session: requests.Session, job: dict, delay: float) -> di
 # Scrape orchestration
 # ──────────────────────────────────────────────
 
-def search_url(keyword: str, offset: int = 0) -> str:
-    q = quote_plus(keyword)
+def search_url(keyword: str | None = None, offset: int = 0) -> str:
+    """Build job search URL. Empty/None keyword = all jobs (no filter)."""
+    kw = (keyword or "").strip()
     if offset <= 0:
-        return f"{BASE_URL}{SEARCH_PATH}?jobkeyword={q}"
-    return f"{BASE_URL}{SEARCH_PATH}/{offset}?jobkeyword={q}"
+        if not kw:
+            return f"{BASE_URL}{SEARCH_PATH}"
+        return f"{BASE_URL}{SEARCH_PATH}?jobkeyword={quote_plus(kw)}"
+    if not kw:
+        return f"{BASE_URL}{SEARCH_PATH}/{offset}"
+    return f"{BASE_URL}{SEARCH_PATH}/{offset}?jobkeyword={quote_plus(kw)}"
 
 
 def scrape_keyword(
     session: requests.Session,
-    keyword: str,
+    keyword: str | None,
     max_pages: int | None,
     delay: float,
     stop_after: int | None = None,
 ) -> list[dict]:
     """
     Scrape listing pages for one keyword (newest first on the site).
+    Empty/None keyword = all latest jobs (unfiltered jobsearch).
     stop_after: stop collecting once this many jobs are gathered for this keyword.
     """
-    print(f"\n=== Keyword: {keyword!r} ===")
+    label = (keyword or "").strip() or "(all jobs)"
+    print(f"\n=== Keyword: {label!r} ===")
     all_jobs: list[dict] = []
+    match_label = (keyword or "").strip() or "all"
 
     first_url = search_url(keyword, 0)
     print(f"  Page 1: {first_url}")
@@ -327,11 +335,11 @@ def scrape_keyword(
 
     total = parse_total_jobs(html)
     if total is not None:
-        print(f"  Site reports ~{total} jobs for this keyword")
+        print(f"  Site reports ~{total} jobs for this search")
     else:
         print("  Could not read total job count; will stop when a page is empty")
 
-    page_jobs = parse_listing_page(html, keyword)
+    page_jobs = parse_listing_page(html, match_label)
     print(f"  Found {len(page_jobs)} jobs on page 1")
     all_jobs.extend(page_jobs)
 
@@ -356,7 +364,7 @@ def scrape_keyword(
         html = fetch(session, url, delay)
         if not html:
             break
-        page_jobs = parse_listing_page(html, keyword)
+        page_jobs = parse_listing_page(html, match_label)
         print(f"  Found {len(page_jobs)} jobs")
         if not page_jobs:
             break
