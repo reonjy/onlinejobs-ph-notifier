@@ -4,33 +4,20 @@
 # Secrets:
 #   TELEGRAM_BOT_TOKEN (required)
 #   TELEGRAM_CHAT_ID   (required)
-#   KEYWORDS (optional) — empty = ALL latest jobs; e.g. "virtual assistant,VA"
+#   KEYWORDS (optional) — empty = ALL latest jobs
 #
-# SCHEDULE: GitHub free-tier `schedule` is best-effort and often never runs
-# for low-activity public repos. Prefer EXTERNAL cron (see EXTERNAL_CRON.md):
-#   cron-job.org → POST workflow_dispatch / repository_dispatch every 15 min.
-# Built-in schedule below is only a weak backup.
-# State is saved to branch "state" (durable) + Actions cache (fast restore).
+# External cron (cron-job.org) should POST:
+#   URL:  .../actions/workflows/onlinejobs-notify.yml/dispatches
+#   Body: {"ref":"main"}
+# See EXTERNAL_CRON.md
 
 name: OnlineJobs Telegram Notify
 
 on:
-  # Weak backup only — free GitHub cron often skips or never fires.
   schedule:
     - cron: "7,22,37,52 * * * *"
-  # Manual run from Actions tab
+  # No inputs — keeps external cron body minimal: {"ref":"main"}
   workflow_dispatch:
-    inputs:
-      open_detail:
-        description: "Open each job page for Date Updated (slower)"
-        required: false
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-  # External cron (cron-job.org, EasyCron, etc.) → repository_dispatch
-  # See EXTERNAL_CRON.md
   repository_dispatch:
     types: [poll]
 
@@ -98,7 +85,7 @@ jobs:
           KEYWORDS: ${{ secrets.KEYWORDS }}
           PAGES_PER_KEYWORD: "1"
           REQUEST_DELAY_SECONDS: "2"
-          OPEN_DETAIL_PAGES: ${{ github.event.inputs.open_detail || 'false' }}
+          OPEN_DETAIL_PAGES: "false"
           SEND_ON_FIRST_RUN: "false"
           STATE_FILE: state/seen_jobs.json
         run: |
