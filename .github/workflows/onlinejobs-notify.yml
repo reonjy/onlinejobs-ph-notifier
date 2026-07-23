@@ -1,23 +1,28 @@
-# Polls OnlineJobs.ph every 15 minutes and notifies Telegram of new jobs.
+# Free always-on alternative to Hugging Face Spaces:
+# runs a single poll every 15 minutes and exits.
 #
 # Setup:
-#  1. Repo -> Settings -> Secrets and variables -> Actions
-#  2. Add secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-#  3. Optional secret: KEYWORDS (comma-separated)
-#  4. Actions -> OnlineJobs Telegram Notify -> Run workflow
+#  1. Push this repo to GitHub
+#  2. Repo → Settings → Secrets and variables → Actions
+#     Add: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+#     Optional: KEYWORDS, PAGES_PER_KEYWORD, REQUEST_DELAY_SECONDS
+#  3. Enable Actions if prompted
 #
-# First run seeds existing job IDs (no spam). Later runs send only NEW posts.
+# Note: GitHub caches are ephemeral; we store seen IDs as a workflow artifact
+# and restore them each run so you don't get repeat notifications.
 
 name: OnlineJobs Telegram Notify
 
 on:
   schedule:
+    # Every 15 minutes
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 permissions:
   contents: read
   actions: read
+  # artifact upload/download uses default GITHUB_TOKEN
 
 jobs:
   notify:
@@ -49,6 +54,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Empty KEYWORDS = watch ALL new jobs (no filter).
+          # Set secret e.g. virtual assistant,VA,Data Entry to filter.
           KEYWORDS: ${{ secrets.KEYWORDS }}
           PAGES_PER_KEYWORD: "1"
           REQUEST_DELAY_SECONDS: "3"
@@ -57,9 +64,8 @@ jobs:
           STATE_FILE: state/seen_jobs.json
         run: |
           mkdir -p state
-          if [ -z "$KEYWORDS" ]; then
-            unset KEYWORDS
-          fi
+          # Keep KEYWORDS set even if empty so notify.py treats empty as "all jobs"
+          echo "KEYWORDS length: ${#KEYWORDS}"
           python notify.py --once
 
       - name: Keep state cache warm

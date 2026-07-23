@@ -49,7 +49,15 @@ Go to: https://github.com/reonjy/onlinejobs-ph-notifier/settings/secrets/actions
 |--------|----------|---------|
 | `TELEGRAM_BOT_TOKEN` | Yes | `7123456789:AAH...` |
 | `TELEGRAM_CHAT_ID` | Yes | `123456789` |
-| `KEYWORDS` | Optional | `virtual assistant,VA,Data Entry,Customer Service` |
+| `KEYWORDS` | Optional | See below |
+
+### KEYWORDS secret
+
+| Value | Behavior |
+|-------|----------|
+| **Empty / not set** | **All new jobs** (no filter) — any new post on the latest listing |
+| `all` or `*` | Same as empty — all new jobs |
+| `virtual assistant,VA,Data Entry` | Only jobs matching those keywords |
 
 After changing a secret, **re-run** the workflow (secrets are only read at start of a run).
 

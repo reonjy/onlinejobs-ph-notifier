@@ -1,12 +1,7 @@
 {
   "telegram_bot_token": "PASTE_BOT_TOKEN_FROM_BOTFATHER",
   "telegram_chat_id": "PASTE_YOUR_CHAT_ID",
-  "keywords": [
-    "virtual assistant",
-    "VA",
-    "Data Entry",
-    "Customer Service"
-  ],
+  "keywords": [],
   "poll_interval_minutes": 15,
   "pages_per_keyword": 1,
   "request_delay_seconds": 5,
