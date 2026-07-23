@@ -213,9 +213,9 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> None:
 def html_escape(text: str) -> str:
     return (
         (text or "")
-        .replace("&", "&")
-        .replace("<", "<")
-        .replace(">", ">")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
     )
 
 
