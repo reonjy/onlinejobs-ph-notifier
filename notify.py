@@ -193,11 +193,26 @@ def telegram_call(token: str, method: str, payload: dict) -> dict:
     resp = requests.post(url, json=payload, timeout=30)
     data = resp.json()
     if not data.get("ok"):
-        raise RuntimeError(f"Telegram API error: {data}")
+        desc = data.get("description") or data
+        hint = ""
+        if "chat not found" in str(desc).lower():
+            hint = (
+                "\n\nCHAT NOT FOUND — fix TELEGRAM_CHAT_ID:\n"
+                "  1. Open your bot in Telegram and press Start / send any message\n"
+                "  2. Open: https://api.telegram.org/bot<TOKEN>/getUpdates\n"
+                "  3. Copy chat.id (a number like 123456789; groups are often negative)\n"
+                "  4. Put ONLY that number in the TELEGRAM_CHAT_ID secret (no quotes/spaces)\n"
+                "  5. Do not use the bot token as chat id\n"
+            )
+        raise RuntimeError(f"Telegram API error: {data}{hint}")
     return data
 
 
 def send_telegram_message(token: str, chat_id: str, text: str) -> None:
+    # Normalize common secret mistakes: quotes, spaces, accidental "chat_id=" prefix
+    chat_id = str(chat_id or "").strip().strip('"').strip("'")
+    if chat_id.lower().startswith("chat_id="):
+        chat_id = chat_id.split("=", 1)[1].strip()
     telegram_call(
         token,
         "sendMessage",
@@ -213,9 +228,9 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> None:
 def html_escape(text: str) -> str:
     return (
         (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
+        .replace("&", "&")
+        .replace("<", "<")
+        .replace(">", ">")
     )
 
 
