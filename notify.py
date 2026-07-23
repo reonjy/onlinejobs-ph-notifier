@@ -251,9 +251,9 @@ def send_telegram_message(token: str, chat_id: str, text: str) -> None:
 def html_escape(text: str) -> str:
     return (
         (text or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
+        .replace("&", "&")
+        .replace("<", "<")
+        .replace(">", ">")
     )
 
 
@@ -279,7 +279,18 @@ def format_job_message(job: dict) -> str:
     )
 
 
+def verify_telegram(token: str, chat_id: str) -> None:
+    """Check bot token + chat without sending a user-visible message."""
+    me = telegram_call(token, "getMe", {})
+    username = (me.get("result") or {}).get("username") or "?"
+    # getChat fails if chat_id is wrong / bot was never started
+    telegram_call(token, "getChat", {"chat_id": chat_id})
+    print(f"Telegram OK (bot @{username}, chat {chat_id}).")
+
+
 def test_telegram(token: str, chat_id: str) -> None:
+    """Send a visible connection message (only used with --test)."""
+    verify_telegram(token, chat_id)
     send_telegram_message(
         token,
         chat_id,
@@ -479,10 +490,11 @@ def main(argv: list[str] | None = None) -> int:
     print("  Press Ctrl+C to stop.\n")
 
     try:
-        test_telegram(token, chat_id)
-        print("Telegram connection OK.\n")
+        # Silent check every poll; visible message only with --test
+        verify_telegram(token, chat_id)
+        print()
     except Exception as exc:
-        print(f"ERROR: Could not message Telegram: {exc}")
+        print(f"ERROR: Could not reach Telegram: {exc}")
         return 1
 
     try:
