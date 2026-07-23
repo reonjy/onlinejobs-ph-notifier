@@ -1,0 +1,70 @@
+# Polls OnlineJobs.ph every 15 minutes and notifies Telegram of new jobs.
+#
+# Setup:
+#  1. Repo -> Settings -> Secrets and variables -> Actions
+#  2. Add secrets: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+#  3. Optional secret: KEYWORDS (comma-separated)
+#  4. Actions -> OnlineJobs Telegram Notify -> Run workflow
+#
+# First run seeds existing job IDs (no spam). Later runs send only NEW posts.
+
+name: OnlineJobs Telegram Notify
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore seen-job state
+        uses: actions/cache@v4
+        with:
+          path: state
+          key: onlinejobs-seen-${{ github.run_id }}
+          restore-keys: |
+            onlinejobs-seen-
+
+      - name: Poll once and notify Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          KEYWORDS: ${{ secrets.KEYWORDS }}
+          PAGES_PER_KEYWORD: "1"
+          REQUEST_DELAY_SECONDS: "3"
+          OPEN_DETAIL_PAGES: "true"
+          SEND_ON_FIRST_RUN: "false"
+          STATE_FILE: state/seen_jobs.json
+        run: |
+          mkdir -p state
+          if [ -z "$KEYWORDS" ]; then
+            unset KEYWORDS
+          fi
+          python notify.py --once
+
+      - name: Keep state cache warm
+        if: always()
+        run: |
+          mkdir -p state
+          test -f state/seen_jobs.json || echo '{"seen_ids":[]}' > state/seen_jobs.json
+          ls -la state
