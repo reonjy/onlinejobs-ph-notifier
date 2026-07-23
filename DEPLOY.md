@@ -8,7 +8,9 @@ You asked about **Hugging Face**. Short answer: **possible**, but free HF is a w
 
 ## Option A — GitHub Actions (recommended, free)
 
-Runs `notify.py --once` every 15 minutes. No server to keep awake.
+Runs `notify.py --once` about every 15 minutes (UTC cron, best-effort). No server to keep awake.
+
+**Reality check:** GitHub free-tier `schedule` is not a guaranteed timer — runs can be delayed or skipped under load. The workflow uses offset minutes (`7,22,37,52`) to reduce drops. For stricter every-15m timing, also use Option C (PC Task Scheduler) or an external cron that calls **Run workflow** via the GitHub API.
 
 ### Steps
 
